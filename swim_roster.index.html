@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bahja Swimming Tracker</title>
+<style>
+body { font-family: system-ui, sans-serif; background:#fff; margin:0; padding:0; }
+header { background:#2e7d32; color:#fff; padding:20px; text-align:center; font-size:24px; font-weight:bold; }
+.layout { display:flex; flex-wrap:wrap; padding:20px; gap:20px; }
+.panel { background:#f9fff9; border:1px solid #d7f0d7; border-radius:12px; padding:16px; flex:1; min-width:280px; }
+.section-card { cursor:pointer; padding:12px; border-radius:10px; border-left:6px solid #2e7d32; margin-bottom:12px; }
+.section-card:hover { background:#e0f2e9; }
+.big-count { font-size:24px; font-weight:bold; }
+.btn { background:#2e7d32; color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; margin:4px 0; }
+.btn.ghost { background:#fff; color:#2e7d32; border:1px solid #2e7d32; }
+.list { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+.child-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border-radius:8px; background:#f0fff0; cursor:pointer; }
+.child-item:hover { background:#e0f2e9; }
+.hidden { display:none; }
+.stage { margin-top:12px; border-top:1px solid #d7f0d7; padding-top:8px; }
+.skill { display:flex; justify-content:space-between; align-items:center; margin:4px 0; }
+select { border-radius:6px; padding:4px; }
+.progress-bar-container { background:#d7f0d7; border-radius:6px; overflow:hidden; height:20px; margin:6px 0; }
+.progress-bar { height:100%; background:#2e7d32; color:#fff; text-align:center; line-height:20px; font-size:12px; }
+.toolbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+input { padding:6px 8px; border-radius:6px; border:1px solid #d7f0d7; }
+</style>
+</head>
+<body>
+<header>Bahja Swimming</header>
+
+<div class="layout">
+  <div class="panel" id="leftPanel">
+    <div class="section-card" data-gender="Boys" id="cardBoys">
+      <div><strong>Boys</strong></div>
+      <div class="big-count" id="countBoys">0</div>
+    </div>
+    <div class="section-card" data-gender="Girls" id="cardGirls">
+      <div><strong>Girls</strong></div>
+      <div class="big-count" id="countGirls">0</div>
+    </div>
+    <div style="margin-top:12px;">
+      <input type="text" id="newChildName" placeholder="Add Child Name">
+      <select id="newChildGender">
+        <option value="Boys">Boys</option>
+        <option value="Girls">Girls</option>
+      </select>
+      <select id="newChildStage">
+        <option value="Stage 1">Stage 1</option>
+        <option value="Stage 2">Stage 2</option>
+        <option value="Stage 3">Stage 3</option>
+        <option value="Stage 4">Stage 4</option>
+        <option value="Stage 5">Stage 5</option>
+        <option value="Stage 6">Stage 6</option>
+        <option value="Stage 7">Stage 7</option>
+      </select>
+      <button class="btn" id="addChildBtn">Add</button>
+      <button class="btn ghost" id="loginBtn">Teacher Login</button>
+    </div>
+  </div>
+
+  <div class="panel" id="rightPanel">
+    <div id="rosterView">
+      <div class="list" id="rosterList"></div>
+    </div>
+    <div id="childView" class="hidden">
+      <button class="btn ghost" id="backToRosterBtn">← Back to Roster</button>
+      <h3 id="childNameHeader"></h3>
+      <div id="stagesContainer"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+<script>
+// ===== Firebase Config =====
+const firebaseConfig = {
+  apiKey: "AIzaSyByzc17vX-fmm5OqCzXdIO1PEV0BzocmHU",
+  authDomain: "bahja-swimming-tracker.firebaseapp.com",
+  projectId: "bahja-swimming-tracker",
+  storageBucket: "bahja-swimming-tracker.firebasestorage.app",
+  messagingSenderId: "266357361667",
+  appId: "1:266357361667:web:2e171eab165024fd78d236"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ===== Stages and Skills =====
+const stages = [
+  {name:"Stage 1", skills:[
+    "Enter the water safely","Move forward 5m","Move backward 5m","Move sideways 5m",
+    "Scoop water & wash face","Be comfortable with water showered","Float on back & return",
+    "Float on front & return","Push & glide front","Push & glide back",
+    "Give 2 pool rules","Exit the water safely"]},
+  {name:"Stage 2", skills:[
+    "Jump in safely","Blow bubbles 3 times","Float back & return","Float front & return",
+    "Push & glide back","Push & glide front","Travel 5m back without floatation",
+    "Travel 5m front without floatation","Tuck front to back & stand","Tuck back to front & stand",
+    "Log roll back to front","Log roll front to back","Exit water without support"]},
+  {name:"Stage 3", skills:[
+    "Jump in & submerge","Sink & glide streamlined","Push glide front & log roll back",
+    "Push glide back & log roll front","Travel 5m front tuck to back","Fully submerge & pick object",
+    "Identify 3 key water safety messages","Push & glide 10m back","Push & glide 10m front",
+    "Tuck float 3s","Exit water without steps"]},
+  {name:"Stage 4", skills:[
+    "Sequence changing shapes","Push & glide wall to floor","Kick 10m backstroke","Kick 10m front crawl",
+    "Kick 10m butterfly","Kick 10m breaststroke","Head first scull 5m back","Travel back & log roll front",
+    "Travel front & log roll back","Push glide swim 10m any stroke"]},
+  {name:"Stage 5", skills:[
+    "Flat stationary scull back","Feet first scull 5m","Partner scull 30-45s","Tread water 30s",
+    "3 different shaped jumps","Push glide 10m backstroke","Push glide 10m front crawl",
+    "Push glide 10m breaststroke","Push glide 10m butterfly","Handstand hold 3s","Forward somersault",
+    "Demonstrate getting help"]},
+  {name:"Stage 6", skills:[
+    "Prepare for exercise","Sink push off side backstroke","Sink push off side front crawl","Swim 10m with clothes",
+    "Push glide front crawl 6 breaths","Push glide breaststroke 6 breaths","Push glide butterfly 3 breaths",
+    "Push glide backstroke 6 breaths","Push glide swim 25m","Shout & signal rescue","Surface dive"]},
+  {name:"Stage 7", skills:[
+    "Push glide swim 25m backstroke","Push glide swim 25m front crawl","Push glide swim 25m breaststroke",
+    "Push glide swim 25m butterfly","1-min movement sequence","Sitting dive","Push glide swim 50m",
+    "Push glide 100m 3 strokes","Tread water eggbeater 30s","Obstacle course 4+ objects"]},
+];
+
+// ===== Global Variables =====
+let teacherLoggedIn = false;
+let currentChildId = null;
+
+// ===== Teacher Login =====
+document.getElementById('loginBtn').addEventListener('click', () => {
+  const user = prompt('Username:');
+  const pass = prompt('Password:');
+  if(user==='teacher' && pass==='bahja123'){
+    teacherLoggedIn = true;
+    alert('Logged in as Teacher');
+    renderRoster();
+  } else alert('Incorrect login');
+});
+
+// ===== Add Child =====
+document.getElementById('addChildBtn').addEventListener('click', async () => {
+  if(!teacherLoggedIn){ alert('Login as Teacher'); return; }
+  const name = document.getElementById('newChildName').value.trim();
+  const gender = document.getElementById('newChildGender').value;
+  const stage = document.getElementById('newChildStage').value;
+  if(!name) return alert('Enter a name');
+  const stagesObj = {}; stagesObj[stage] = {};
+  await db.collection('children').add({ name, gender, stages: stagesObj });
+  document.getElementById('newChildName').value='';
+  renderRoster();
+});
+
+// ===== Render Roster =====
+async function renderRoster(){
+  const rosterList = document.getElementById('rosterList');
+  const snapshot = await db.collection('children').get();
+  const children = snapshot.docs.map(doc=>({id:doc.id,...doc.data()}));
+
+  const boys = children.filter(c=>c.gender==='Boys').length;
+  const girls = children.filter(c=>c.gender==='Girls').length;
+  document.getElementById('countBoys').textContent=boys;
+  document.getElementById('countGirls').textContent=girls;
+
+  rosterList.innerHTML='';
+  children.forEach(c=>{
+    const div = document.createElement('div');
+    div.className='child-item';
+    div.textContent=c.name;
+    div.addEventListener('click',()=>openChild(c.id));
+    rosterList.appendChild(div);
+  });
+}
+
+// ===== Open Child =====
+async function openChild(id){
+  currentChildId=id;
+  const doc = await db.collection('children').doc(id).get();
+  const child={id:doc.id,...doc.data()};
+  document.getElementById('childView').classList.remove('hidden');
+  document.getElementById('rosterView').classList.add('hidden');
+  document.getElementById('childNameHeader').textContent=child.name;
+  renderChildStages(child);
+}
+
+// ===== Render Child Stages =====
+async function renderChildStages(child){
+  const container=document.getElementById('stagesContainer');
+  container.innerHTML='';
+  for(const stageName of Object.keys(child.stages)){
+    const stageData=stages.find(s=>s.name===stageName);
+    if(!stageData) continue;
+    const stageDiv=document.createElement('div'); stageDiv.className='stage';
+    const header=document.createElement('div'); header.innerHTML=`<strong>${stageData.name}</strong>`;
+    stageDiv.appendChild(header);
+
+    const totalSkills=stageData.skills.length;
+
+    stageData.skills.forEach(skill=>{
+      const skillDiv=document.createElement('div'); skillDiv.className='skill';
+      const label=document.createElement('div'); label.textContent=skill;
+      const select=document.createElement('select');
+      const options=["Not Assessed","Started","Getting There","Passed"];
+      options.forEach(opt=>{
+        const o=document.createElement('option'); o.value=opt; o.textContent=opt;
+        if(child.stages[stageName]?.[skill]===opt) o.selected=true;
+        select.appendChild(o);
+      });
+      if(!teacherLoggedIn) select.disabled=true;
+      select.addEventListener('change', async ()=>{
+        const docRef=db.collection('children').doc(currentChildId);
+        const updateObj={}; updateObj[`stages.${stageName}.${skill}`]=select.value;
+        await docRef.update(updateObj);
+        renderRoster();
+      });
+      skillDiv.appendChild(label); skillDiv.appendChild(select);
+      stageDiv.appendChild(skillDiv);
+    });
+
+    // Calculate percentage
+    const stageSkills=child.stages[stageName]||{};
+    let sum=0;
+    Object.values(stageSkills).forEach(val=>{
+      if(val==='Not Assessed') sum+=0;
+      else if(val==='Started') sum+=25;
+      else if(val==='Getting There') sum+=50;
+      else if(val==='Passed') sum+=100;
+    });
+    const percent=Math.round(sum/totalSkills);
+    const barCont=document.createElement('div'); barCont.className='progress-bar-container';
+    const bar=document.createElement('div'); bar.className='progress-bar'; bar.style.width=percent+'%'; bar.textContent=percent+'%';
+    barCont.appendChild(bar); stageDiv.appendChild(barCont);
+
+    container.appendChild(stageDiv);
+  }
+}
+
+// ===== Back Button =====
+document.getElementById('backToRosterBtn').addEventListener('click', ()=>{
+  document.getElementById('childView').classList.add('hidden');
+  document.getElementById('rosterView').classList.remove('hidden');
+  renderRoster();
+});
+
+// ===== Initial Load =====
+renderRoster();
+</script>
+</body>
+</html>
